@@ -11,16 +11,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   // los navegadores incluyendo Safari iOS
   // ══════════════════════════════════════════════
 
-  function addTapListener(el, fn) {
-    if (!el) return;
-    let touchMoved = false;
-    el.addEventListener('touchstart', () => { touchMoved = false; }, { passive: true });
-    el.addEventListener('touchmove',  () => { touchMoved = true;  }, { passive: true });
-    el.addEventListener('touchend', (e) => {
-      if (!touchMoved) { e.preventDefault(); fn(e); }
-    });
-    el.addEventListener('click', fn);
-  }
+ function addTapListener(el, fn) {
+  if (!el) return;
+  let touchMoved = false;
+  el.addEventListener('touchstart', () => { touchMoved = false; }, { passive: true });
+  el.addEventListener('touchmove',  () => { touchMoved = true;  }, { passive: true });
+  el.addEventListener('touchend', (e) => {
+    if (!touchMoved) {
+      // Solo prevenir default en elementos que NO sean enlaces nativos
+      if (el.tagName !== 'A') {
+        e.preventDefault();
+      }
+      fn(e);
+    }
+  });
+  el.addEventListener('click', fn);
+}
 
   // ══════════════════════════════════════════════
   // BLOQUE 1 — Funciona SIEMPRE, antes del fetch
