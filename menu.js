@@ -1,7 +1,7 @@
 /* =============================================
-   EL ESTADERO — menu.js v4
-   Fixes: Safari iOS touch, video autoplay,
-   fallbacks, cross-browser compatibility
+   EL ESTADERO — menu.js v5
+   Fixes: Android touch on <a> links, Safari iOS,
+   video autoplay, fallbacks, cross-browser
    ============================================= */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -9,24 +9,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ══════════════════════════════════════════════
   // UTILIDAD — soporte touch + click en todos
   // los navegadores incluyendo Safari iOS
+  //
+  // IMPORTANTE: No usar en elementos <a> ni en
+  // contenedores que los contengan — Android
+  // bloquea la navegación nativa si se usa
+  // preventDefault() en touchend sobre un padre.
   // ══════════════════════════════════════════════
 
- function addTapListener(el, fn) {
-  if (!el) return;
-  let touchMoved = false;
-  el.addEventListener('touchstart', () => { touchMoved = false; }, { passive: true });
-  el.addEventListener('touchmove',  () => { touchMoved = true;  }, { passive: true });
-  el.addEventListener('touchend', (e) => {
-    if (!touchMoved) {
-      // Solo prevenir default en elementos que NO sean enlaces nativos
-      if (el.tagName !== 'A') {
-        e.preventDefault();
-      }
-      fn(e);
+  function addTapListener(el, fn) {
+    if (!el) return;
+    // Si es un <a>, solo usar click — el browser lo maneja nativamente
+    if (el.tagName === 'A') {
+      el.addEventListener('click', fn);
+      return;
     }
-  });
-  el.addEventListener('click', fn);
-}
+    let touchMoved = false;
+    el.addEventListener('touchstart', () => { touchMoved = false; }, { passive: true });
+    el.addEventListener('touchmove',  () => { touchMoved = true;  }, { passive: true });
+    el.addEventListener('touchend', (e) => {
+      if (!touchMoved) { e.preventDefault(); fn(e); }
+    });
+    el.addEventListener('click', fn);
+  }
 
   // ══════════════════════════════════════════════
   // BLOQUE 1 — Funciona SIEMPRE, antes del fetch
@@ -39,33 +43,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let revealed = false;
   function revealApp() {
-    if (revealed) return; // evita doble disparo
+    if (revealed) return;
     revealed = true;
     intro.classList.add('hidden');
     app.classList.add('visible');
   }
 
-  // Toque o clic en cualquier parte del intro → avanza
   addTapListener(intro, revealApp);
 
-  // Video: avanza al terminar
   if (introVideo) {
-    // Fix Safari: forzar atributos necesarios por JS también
-    introVideo.muted    = true;
+    introVideo.muted       = true;
     introVideo.playsInline = true;
 
     introVideo.addEventListener('ended', revealApp);
 
-    // Intentar reproducir (algunos browsers bloquean autoplay)
     const playPromise = introVideo.play();
     if (playPromise !== undefined) {
-      playPromise.catch(() => {
-        // Si el autoplay falla (política del browser), avanzar directo
-        revealApp();
-      });
+      playPromise.catch(() => { revealApp(); });
     }
 
-    // Fallback: si el video dura más de 15s o no carga, avanza igual
     setTimeout(revealApp, 15000);
   } else {
     setTimeout(revealApp, 4000);
@@ -93,7 +89,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     dOverlay.classList.add('open');
     menuToggle.classList.add('open');
     menuToggle.setAttribute('aria-expanded', 'true');
-    // Fix iOS: previene scroll del body detrás del drawer
     document.body.style.overflow = 'hidden';
   }
 
@@ -116,7 +111,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     infoOverlay.classList.add('open'));
   addTapListener(document.getElementById('info-close'), () =>
     infoOverlay.classList.remove('open'));
-  addTapListener(infoOverlay, (e) => {
+
+  // FIX ANDROID: el overlay usa solo 'click', no touchend custom,
+  // para no interceptar los toques sobre los <a> hijos (WhatsApp, llamar)
+  infoOverlay.addEventListener('click', (e) => {
     if (e.target === infoOverlay) infoOverlay.classList.remove('open');
   });
 
@@ -131,7 +129,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     data = await res.json();
   } catch (e) {
     console.error('No se pudo cargar menu.json:', e);
-    // Mostrar mensaje de error amigable en el panel
     const menuPanel = document.getElementById('menu-panel');
     if (menuPanel) {
       menuPanel.innerHTML = `
@@ -246,13 +243,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ── Fill info modal ───────────────────────────
+  // FIX ANDROID: los <a> del modal NO se tocan con addTapListener,
+  // se dejan funcionar de forma nativa para que Android abra WhatsApp y el marcador.
   const phoneRaw = r.phone.replace(/\D/g, '');
-  document.getElementById('info-phone-link').href        = `tel:${phoneRaw}`;
-  document.getElementById('info-phone-link').textContent = r.phone;
-  document.getElementById('info-address').textContent    = r.address;
-  document.getElementById('info-ig-link').href           = r.instagram;
-  document.getElementById('info-fb-link').href           = r.facebook;
-  document.getElementById('info-wa-link').href           =
+
+  const phoneLinkEl = document.getElementById('info-phone-link');
+  if (phoneLinkEl) {
+    phoneLinkEl.href        = `tel:${phoneRaw}`;
+    phoneLinkEl.textContent = r.phone;
+  }
+
+  const addressEl = document.getElementById('info-address');
+  if (addressEl) addressEl.textContent = r.address;
+
+  const igEl = document.getElementById('info-ig-link');
+  if (igEl) igEl.href = r.instagram;
+
+  const fbEl = document.getElementById('info-fb-link');
+  if (fbEl) fbEl.href = r.facebook;
+
+  const waEl = document.getElementById('info-wa-link');
+  if (waEl) waEl.href =
     `https://wa.me/${r.whatsapp}?text=Hola%20El%20Estadero,%20vi%20su%20men%C3%BA%20y%20quisiera%20`;
+
+  const phoneBtn = document.getElementById('info-phone-btn');
+  if (phoneBtn) phoneBtn.href = `tel:${phoneRaw}`;
 
 });
